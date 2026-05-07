@@ -16,11 +16,3 @@
 - [A GLIMPSE of the First Galaxies?](https://astrobites.org/2025/05/30/glimpsing_galaxies/#:~:text=Figure%202:%20Color-color%20plot,Figure%202%20in%20the%20paper.)
 - [Unveiling the oldest and most massive galaxies at very high redshift⋆](https://www.aanda.org/articles/aa/pdf/2007/28/aa6497-06.pdf)
 
-
-
-
-
-# cosmic-evolution-26S
-Files used in Cosmic Evolution class 26S
-
-
