@@ -9,7 +9,6 @@ import os
 
 pd.set_option('display.max_columns', None) #set pandas option to display all columns when we print the data
 
-
 def load_fits(fname):
     with fits.open(fname) as hdu:
         data =  hdu[1].data  
@@ -39,14 +38,12 @@ columns = [
     'O2_3727_err', #error on the OII 3727      #agn indicators below:
     'O3_5007_flux', # OIII 5007 line 
     'O3_5007_err', #error on the OIII 5007 
-    'Blnd_He2_O3_1650_flux', #flux of the blended HeII 1640 line
-    'Blnd_He2_O3_1650_err', #error on the blended HeII 1640   #uhmmm perchance needed below:
     'O3_4959_flux', #flux of the OIII 4959 line -AGN indicator
     'O3_4959_err', #error on the OIII 4959 flux measurement
 
 ]
 #future use for JADES viewer pics (potentially)
-print(df['NIRCam_ID'][0:10])
+print(df['NIRCam_ID'])
 
 df= df[columns] #keep only the columns we are want
 df = df[df["z_Spec_flag"].isin(["A", "B", "C"])]
@@ -54,7 +51,6 @@ df = df[df["z_Spec_flag"].isin(["A", "B", "C"])]
 df = df[df["z_Spec"] > 5] 
 
 #print('shape')
-
 sf_df= df[
     (df["HA_6563_flux"] > 0)
 ]
@@ -146,16 +142,33 @@ strong_sf = df.sort_values(
 # 4297 is a high redshift galaxy that is a strong agn candidate
 # 4404 is a strong starforming + good 0II + OIII lines (balanced)
 
-
-#okay going to attempt to use ASTROQUERY to find the spectral data for these galaxies
+#——————————————————————————————————————————#
+#phase 2: 
+#going to use ASTROQUERY to find the spectral data for these galaxies
 #organized galaxie id #'s. their ra and dec, and now a loop to query for the spectra of each galaxy and download it
 galaxies= [4873, 2430, 4297, 4404]
 ra_list = [53.166109, 53.128186, 53.155788,53.115372 ]
 dec_list= [-27.785739, -27.787688, -27.815202, -27.814771]
 
+
+galaxies = [4873, 2430, 4297, 4404]
+
+selected_info = df[df["NIRSpec_ID"].isin(galaxies)][
+    [
+        "NIRSpec_ID",
+        "NIRCam_ID",
+        "RA_TARG",
+        "Dec_TARG",
+        "z_Spec",
+        "z_Spec_flag"
+    ]
+]
+
+print(selected_info)
+
 spectra_files = {}
 
-for i in range(len(galaxies)):
+"""for i in range(len(galaxies)):
     print(f"Querying for galaxy {galaxies[i]} with RA: {ra_list[i]} and Dec: {dec_list[i]}")
 
     obs= Observations.query_criteria(obs_collection = "HLSP", 
@@ -189,7 +202,14 @@ for i in range(len(galaxies)):
     print("Downloaded:" , local_path)
 
     spectra_files[galaxies[i]] = local_path
-print(spectra_files)
+print(spectra_files)"""
+spectra_files = {
+    4873: "./mastDownload/HLSP/hlsp_jades_jwst_nirspec_goods-s-mediumhst-00004873_clear-prism_v1.0/hlsp_jades_jwst_nirspec_goods-s-mediumhst-00004873_clear-prism_v1.0_x1d.fits" ,
+    2430: "./mastDownload/HLSP/hlsp_jades_jwst_nirspec_goods-s-mediumhst-00002430_clear-prism_v1.0/hlsp_jades_jwst_nirspec_goods-s-mediumhst-00002430_clear-prism_v1.0_x1d.fits",
+    4297: "./mastDownload/HLSP/hlsp_jades_jwst_nirspec_goods-s-deephst-00004297_clear-prism_v1.0/hlsp_jades_jwst_nirspec_goods-s-deephst-00004297_clear-prism_v1.0_x1d.fits",
+    4404: "./mastDownload/HLSP/hlsp_jades_jwst_nirspec_goods-s-deephst-00004404_clear-prism_v1.0/hlsp_jades_jwst_nirspec_goods-s-deephst-00004404_clear-prism_v1.0_x1d.fits"
+}
+
 
 #going to individually organize their files in order to plot their spectra 
 spectra_data = {}
@@ -205,7 +225,7 @@ for galaxy_id in spectra_files:
         "flux_err": data["FLUX_ERR"]
     }
 
-print(spectra_data.keys())
+#print(spectra_data.keys())
  
 # emission lines 
 emission_lines = {
@@ -233,7 +253,7 @@ galaxy_notes = {
 fig, axes = plt.subplots(
     nrows=4,
     ncols=1,
-    figsize=(11, 10),
+    figsize=(15, 8),
     sharex=True
 )
 
@@ -252,7 +272,7 @@ for index, galaxy_id in enumerate(galaxies):
 
     # remove noisy far-blue edge
     #didnt work??? -NEED TO FIX 
-    mask = wavelength_rest > 0.12
+    mask = wavelength_rest > 0.2
 
     ax.plot(
         wavelength_rest[mask],
@@ -277,10 +297,10 @@ for index, galaxy_id in enumerate(galaxies):
 
         ax.text(
             line_wave,
-            ax.get_ylim()[1] * 0.85,
+            ax.get_ylim()[1] * 0.85+ 0.003,
             label,
             rotation=90,
-            fontsize=8,
+            fontsize=9,
             verticalalignment="top"
         )
 
@@ -294,5 +314,359 @@ plt.tight_layout()
 plt.savefig("figures/rest_frame_spectra_four_galaxies.png", dpi=300, bbox_inches="tight")
 plt.show()
 
-#YAY it worked 
-#data anylsis to be continued
+#——————————————————————————————————————————#
+#Formal spectra line analysis to see if we got an agn + SF candidates 
+
+#—————————#
+#only going to look at Hb, OIII, and HA, since OII's peaks aren't very clear 
+#—————————#
+
+plt.rcParams['figure.figsize'] = (12.0, 8.0)
+
+#4873 first 
+#Load up  spectrum
+glx4873_spectrum = spectra_data[4873]
+flux = glx4873_spectrum['flux']
+wavelength = glx4873_spectrum['wavelength']
+
+pixels_full = wavelength / (1 + df[df["NIRSpec_ID"] == 4873]["z_Spec"].values[0]) #convert to rest frame wavelength by dividing by 1+z
+signal_full = flux
+
+#plt.plot(pixels_full,signal_full)  #fill in what to plot, then run this cell again to see if it matches
+x1= 0.45
+x2= 0.7
+mask = (pixels_full >= x1) & (pixels_full <= x2)
+pixels = pixels_full[mask]
+signal = signal_full[mask]
+
+"""
+plt.xlim(x1,x2) 
+plt.ylim(-0.2e-19, 1.2e-19)
+plt.xlabel(' wavelength (microns)')
+plt.ylabel('flux')
+plt.show()
+"""
+#Find the peaks 
+
+threshold =1.5e-20 #You can just pick slightly lower than the lowest peak you want to centroid
+peaks = []    #x positions of the peaks, or rather, their index
+for i in range(2,len(signal)-2): #len(signal)-1 because you will be checking the value after than your last i 
+    if (signal[i] > signal[i-1]) and (signal[i] > signal[i+1]) and (signal[i] > threshold) :  #three conditions to be a peak
+        if((signal[i] > signal[i-2]) and (signal[i] > signal[i+2])):
+            peaks.append(i)
+
+c= 299792.458 #speed of light in km/s 
+
+centroids = [] #Values for all the centroids
+xminlist = [] 
+xmaxlist = [] 
+
+print("Galaxy 4873 FWHM DATA: ")
+for i in range(len(peaks)):
+    #Calculate how far backward and forward to go:
+    half_max = signal[peaks[i]]/2
+    indices= np.arange(len(signal))
+    xmin =  int(indices[(indices<=peaks[i])&(signal<=half_max)][-1])
+    xmax =  int(indices[(indices>=peaks[i])&(signal<=half_max)][0])
+    x_range = pixels[xmin:xmax +1 ]
+    I_range = signal[xmin:xmax +1 ]
+    x_range = np.array(x_range)
+    I_range = np.array(I_range)
+    
+
+    #finding FWHM of each peak
+    lambda_0 = np.sum(x_range * I_range) / np.sum(I_range)
+    centroids.append(lambda_0)
+    delta_lambda = pixels[xmax] - pixels[xmin] 
+    velocity= c * (delta_lambda / lambda_0 )
+    xminlist.append(pixels[xmin])
+    xmaxlist.append(pixels[xmax]) 
+
+    print (f"Peak {i+1} at {lambda_0:.4f} microns:")
+    print(f"FWHM : {delta_lambda:.5f}microns")
+    print(f"Velocity: {velocity:.1f} km/s\n")
+
+    
+def plot_vert(x): 
+    '''
+    Just plots vertical lines, in blue dashes
+    '''
+    plt.axvline(x, color='DarkBlue', ls='-.')
+
+
+#for i in centroids[1:]: #Call my plotting function on every centroid except the first
+#    plot_vert(i)
+#plt.axvline(centroids[0], color='DarkBlue', ls='-.', label='Centroid', lw=2) #Reserve the first so I don't have a million "centroid" labels
+
+
+plt.plot(pixels, signal, 'blue', label='4873 spectrum') #Plot the actual spectrum
+ymin, ymax = plt.gca().get_ylim()
+plt.axvline(0.4861, ls= "--", color= "lightskyblue", lw = 1)
+plt.text( 0.4861 + 0.004, ymax*0.85, "H\u03B2 4861", rotation=90, color="lightskyblue", fontsize=11, va="top")
+plt.axvline(0.5007,  ls= "--", color= "lightseagreen", lw= 1)
+plt.text( 0.5007 + 0.004, ymax*0.85, "[OIII] 5007", rotation=90, color="lightseagreen", fontsize=11, va="top")
+plt.axvline(0.6563, ls= "--", color= "red", lw = 1)
+plt.text( 0.6563 + 0.004, ymax*0.85, "H\u03B1 6563", rotation=90, color="red", fontsize=11, va="top")
+
+for i, xmin in enumerate(xminlist):
+    if i == 0: 
+        plt.axvline(xmin, color= "grey", ls=":", alpha = 0.8, lw = 1.8 , label = "FWHM Boundaries") 
+    else:
+        plt.axvline(xmin, color= "grey", ls=":", alpha = 0.8, lw = 1.8) 
+for xmax in xmaxlist:
+    plt.axvline(xmax, color= "grey", ls=":", alpha = 0.8, lw =1.8 ) 
+
+plt.title("FWHM of Galaxy 4873: AGN + SF Candidate")
+plt.xlabel('Rest-frame Wavelength ($\\mu$m)')
+plt.ylabel('Flux')
+plt.legend(loc=2)
+plt.show()
+print(centroids)
+#——————————————————————————————————————————#
+#galaxy 2430- SF
+glx2430_spectrum = spectra_data[2430]
+flux = glx2430_spectrum['flux']
+wavelength = glx2430_spectrum['wavelength']
+pixels_full = wavelength / (1 + df[df["NIRSpec_ID"] == 2430]["z_Spec"].values[0]) 
+signal_full = flux
+
+#plt.plot(pixels,signal) 
+x1= 0.45 
+x2= 0.7 
+mask = (pixels_full >= x1) & (pixels_full <= x2)
+pixels = pixels_full[mask]
+signal = signal_full[mask]
+
+#Find the peaks 
+threshold =1.0e-20 
+peaksSF = []  
+for i in range(2,len(signal)-2): 
+    if (signal[i] > signal[i-1]) and (signal[i] > signal[i+1]) and (signal[i] > threshold) :  
+        if((signal[i] > signal[i-2]) and (signal[i] > signal[i+2])):
+            peaksSF.append(i)
+
+c= 299792.458 
+
+centroidsSF = [] 
+xminlistSF = [] 
+xmaxlistSF = [] 
+
+print("Galaxy 2430 (SF) FWHM DATA: ")
+for i in range(len(peaksSF)):
+    half_max = signal[peaksSF[i]]/2
+    indices= np.arange(len(signal))
+    xmin =  int(indices[(indices<=peaksSF[i])&(signal<=half_max)][-1])
+    xmax =  int(indices[(indices>=peaksSF[i])&(signal<=half_max)][0])
+    x_range = pixels[xmin:xmax +1 ]
+    I_range = signal[xmin:xmax +1 ]
+    x_range = np.array(x_range)
+    I_range = np.array(I_range)
+
+
+    #finding FWHM of each peak
+    lambda_0 = np.sum(x_range * I_range) / np.sum(I_range)
+    centroidsSF.append(lambda_0)
+    delta_lambda = pixels[xmax] - pixels[xmin] 
+    velocity= c * (delta_lambda / lambda_0 )
+    xminlistSF.append(pixels[xmin])
+    xmaxlistSF.append(pixels[xmax]) 
+
+    print (f"Peak {i+1} at {lambda_0:.4f} microns:")
+    print(f"FWHM : {delta_lambda:.5f}microns")
+    print(f"Velocity: {velocity:.1f} km/s\n")
+
+    
+#for i in centroidsSF[1:]: 
+#    plot_vert(i)
+#plt.axvline(centroidsSF[0], color='DarkBlue', ls='-.', label='Centroid')
+
+plt.plot(pixels, signal, 'green', label='Spectrum') 
+ymin, ymax = plt.gca().get_ylim()
+plt.axvline(0.4861, ls= "--", color= "lightskyblue", lw = 1)
+plt.text( 0.4861 + 0.004, ymax*0.85, "H\u03B2 4861", rotation=90, color="lightskyblue", fontsize=11, va="top")
+plt.axvline(0.5007,  ls= "--", color= "lightseagreen", lw= 1)
+plt.text( 0.5007 + 0.004, ymax*0.85, "[OIII] 5007", rotation=90, color="lightseagreen", fontsize=11, va="top")
+plt.axvline(0.6563, ls= "--", color= "red", lw = 1)
+plt.text( 0.6563 + 0.004, ymax*0.85, "H\u03B1 6563", rotation=90, color="red", fontsize=11, va="top")
+
+for i, xmin in enumerate(xminlistSF):
+    if i == 0: 
+        plt.axvline(xmin, color= "grey", ls=":", alpha = 0.8, lw = 1.8 , label = "FWHM Boundaries") 
+    else:
+        plt.axvline(xmin, color= "grey", ls=":", alpha = 0.8, lw = 1.8) 
+for xmax in xmaxlistSF:
+    plt.axvline(xmax, color= "grey", ls=":", alpha = 0.8, lw =1.8 ) 
+plt.title("FWHM of Galaxy 2430: SF")
+plt.xlabel('Rest-frame Wavelength ($\\mu$m)')
+plt.ylabel('Flux')
+plt.legend(loc=2)
+plt.show()
+print(centroidsSF)
+
+#——————————————————————————————————————————#
+#galaxy 4297- AGN 
+glx4297_spectrum = spectra_data[4297]
+flux = glx4297_spectrum['flux']
+wavelength = glx4297_spectrum['wavelength']
+pixels_full = wavelength / (1 + df[df["NIRSpec_ID"] == 4297]["z_Spec"].values[0]) #convert to rest frame wavelength by dividing by 1+z
+signal_full = flux
+
+#plt.plot(pixels,signal) #fill in what to plot, then run this cell again to see if it matches
+x1= 0.45 
+x2= 0.7 
+mask = (pixels_full >= x1) & (pixels_full <= x2)
+pixels = pixels_full[mask]
+signal = signal_full[mask]
+
+#Find the peaks 
+threshold =0.65e-20 #You can just pick slightly lower than the lowest peak you want to centroid
+peaksAGN = []    #x positions of the peaks, or rather, their index
+for i in range(2,len(signal)-2): #len(signal)-1 because you will be checking the value after than your last i 
+    if (signal[i] > signal[i-1]) and (signal[i] > signal[i+1]) and (signal[i] > threshold) :  #three conditions to be a peak
+        if((signal[i] > signal[i-2]) and (signal[i] > signal[i+2])):
+            peaksAGN.append(i)
+
+
+c= 299792.458 #speed of light in km/s 
+
+centroidsAGN = [] #Values for all the centroids
+xminlistAGN = [] 
+xmaxlistAGN = [] 
+
+print("Galaxy 4297(AGN) FWHM DATA: ")
+for i in range(len(peaksAGN)):
+    #Calculate how far backward and forward to go:
+    half_max = signal[peaksAGN[i]]/2
+    indices= np.arange(len(signal))
+    xmin =  int(indices[(indices<=peaksAGN[i])&(signal<=half_max)][-1])
+    xmax =  int(indices[(indices>=peaksAGN[i])&(signal<=half_max)][0])
+    x_range = pixels[xmin:xmax +1 ]
+    I_range = signal[xmin:xmax +1 ]
+    x_range = np.array(x_range)
+    I_range = np.array(I_range)
+
+
+    #finding FWHM of each peak
+    lambda_0 = np.sum(x_range * I_range) / np.sum(I_range)
+    centroidsAGN.append(lambda_0)
+    delta_lambda = pixels[xmax] - pixels[xmin] 
+    velocity= c * (delta_lambda / lambda_0 )
+    xminlistAGN.append(pixels[xmin])
+    xmaxlistAGN.append(pixels[xmax]) 
+
+    print (f"Peak {i+1} at {lambda_0:.4f} microns:")
+    print(f"FWHM : {delta_lambda:.5f}microns")
+    print(f"Velocity: {velocity:.1f} km/s\n")
+
+     
+#for i in centroidsAGN[1:]: 
+#    plot_vert(i)
+#plt.axvline(centroidsAGN[0], color='DarkBlue', ls='-.', label='Centroid')
+
+plt.plot(pixels, signal, 'red', label='Spectrum') 
+ymin, ymax = plt.gca().get_ylim()
+plt.axvline(0.4861, ls= "--", color= "lightskyblue", lw = 1)
+plt.text( 0.4861 + 0.004, ymax*0.85, "H\u03B2 4861", rotation=90, color="lightskyblue", fontsize=11, va="top")
+plt.axvline(0.5007,  ls= "--", color= "lightseagreen", lw= 1)
+plt.text( 0.5007 + 0.004, ymax*0.85, "[OIII] 5007", rotation=90, color="lightseagreen", fontsize=11, va="top")
+plt.axvline(0.6563, ls= "--", color= "darkred", lw = 1)
+plt.text( 0.6563 + 0.004, ymax*0.85, "H\u03B1 6563", rotation=90, color="darkred", fontsize=11, va="top")
+
+for i, xmin in enumerate(xminlistAGN):
+    if i == 0: 
+        plt.axvline(xmin, color= "grey", ls=":", alpha = 0.8, lw = 1.8 , label = "FWHM Boundaries") 
+    else:
+        plt.axvline(xmin, color= "grey", ls=":", alpha = 0.8, lw = 1.8) 
+for xmax in xmaxlistAGN:
+    plt.axvline(xmax, color= "grey", ls=":", alpha = 0.8, lw =1.8 ) 
+plt.title("FWHM of Galaxy 4297: AGN")
+plt.xlabel('Rest-frame Wavelength ($\\mu$m)')
+plt.ylabel('Flux')
+plt.legend(loc=2)
+plt.show()
+print(centroidsAGN)
+
+#——————————————————————————————————————————#
+#galaxy 4404- Balanced  
+glx4404_spectrum = spectra_data[4404]
+flux = glx4404_spectrum['flux']
+wavelength = glx4404_spectrum['wavelength']
+pixels_full = wavelength / (1 + df[df["NIRSpec_ID"] == 4404]["z_Spec"].values[0]) #convert to rest frame wavelength by dividing by 1+z
+signal_full = flux
+
+#plt.plot(pixels,signal) #fill in what to plot, then run this cell again to see if it matches
+x1= 0.45 
+x2= 0.7 
+mask = (pixels_full >= x1) & (pixels_full <= x2)
+pixels = pixels_full[mask]
+signal = signal_full[mask]
+
+#Find the peaks 
+threshold =1.0e-20 #You can just pick slightly lower than the lowest peak you want to centroid
+peaksBL = []    #x positions of the peaks, or rather, their index
+for i in range(2,len(signal)-2): #len(signal)-1 because you will be checking the value after than your last i 
+    if (signal[i] > signal[i-1]) and (signal[i] > signal[i+1]) and (signal[i] > threshold) :  #three conditions to be a peak
+        if((signal[i] > signal[i-2]) and (signal[i] > signal[i+2])):
+            peaksBL.append(i)
+
+
+c= 299792.458 #speed of light in km/s 
+
+centroidsBL = [] #Values for all the centroids
+xminlistBL = [] 
+xmaxlistBL = [] 
+
+print("Galaxy 4404 (Balanced) FWHM DATA: ")
+for i in range(len(peaksBL)):
+    #Calculate how far backward and forward to go:
+    half_max = signal[peaksBL[i]]/2
+    indices= np.arange(len(signal))
+    xmin =  int(indices[(indices<=peaksBL[i])&(signal<=half_max)][-1])
+    xmax =  int(indices[(indices>=peaksBL[i])&(signal<=half_max)][0])
+    x_range = pixels[xmin:xmax +1 ]
+    I_range = signal[xmin:xmax +1 ]
+    x_range = np.array(x_range)
+    I_range = np.array(I_range)
+
+
+   #finding FWHM of each peak
+    lambda_0 = np.sum(x_range * I_range) / np.sum(I_range)
+    centroidsBL.append(lambda_0)
+    delta_lambda = pixels[xmax] - pixels[xmin] 
+    velocity= c * (delta_lambda / lambda_0 )
+    xminlistBL.append(pixels[xmin])
+    xmaxlistBL.append(pixels[xmax]) 
+
+    print (f"Peak {i+1} at {lambda_0:.4f} microns:")
+    print(f"FWHM : {delta_lambda:.5f}microns")
+    print(f"Velocity: {velocity:.1f} km/s\n")
+
+    
+#for i in centroidsBL[1:]: 
+#    plot_vert(i)
+#plt.axvline(centroidsBL[0], color='DarkBlue', ls='-.', label='Centroid')
+
+plt.plot(pixels, signal, 'purple', label='Spectrum') 
+ymin, ymax = plt.gca().get_ylim()
+plt.axvline(0.4861, ls= "--", color= "lightskyblue", lw = 1)
+plt.text( 0.4861 + 0.004, ymax*0.85, "H\u03B2 4861", rotation=90, color="lightskyblue", fontsize=11, va="top")
+plt.axvline(0.5007,  ls= "--", color= "lightseagreen", lw= 1)
+plt.text( 0.5007 + 0.004, ymax*0.85, "[OIII] 5007", rotation=90, color="lightseagreen", fontsize=11, va="top")
+plt.axvline(0.6563, ls= "--", color= "red", lw = 1)
+plt.text( 0.6563 + 0.004, ymax*0.85, "H\u03B1 6563", rotation=90, color="red", fontsize=11, va="top")
+
+for i, xmin in enumerate(xminlistBL):
+    if i == 0: 
+        plt.axvline(xmin, color= "grey", ls=":", alpha = 0.8, lw = 1.8 , label = "FWHM Boundaries") 
+    else:
+        plt.axvline(xmin, color= "grey", ls=":", alpha = 0.8, lw = 1.8) 
+for xmax in xmaxlistBL:
+    plt.axvline(xmax, color= "grey", ls=":", alpha = 0.8, lw =1.8 ) 
+plt.title("FWHM of Galaxy 4404: Balanced ")
+plt.xlabel('Rest-frame Wavelength ($\\mu$m)')
+plt.ylabel('Flux')
+plt.legend(loc=2)
+plt.show()
+print(centroidsBL)
+
+#——————————————————————————————————————————#
