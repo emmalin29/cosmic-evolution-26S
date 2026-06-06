@@ -4,7 +4,7 @@
 ## Repository Contents - Files used in Cosmic Evolution class Spring Quarter 2026
 
 ### data_analysis.py
-main python script used for catalog filtering, emission-line ratio calculations, spectral retrival from MAST, rest-fram wavelength conversion, and FWHM measurements. 
+main python script used for catalog filtering, emission-line ratio calculations, spectral retrieval from MAST, rest-frame wavelength conversion, and FWHM measurements. 
 
 ### Figures
 Contains all figures generated for the project, including:
@@ -19,7 +19,7 @@ Contains all figures generated for the project, including:
 ### mastDownload/HLSP
 Contains all downloaded JWST/JADES spectra obtained through MAST & used for spectral analysis.
 
-### Final_Paper.pdf
+### Final Paper.pdf
 Final written report investigating the relationship between star formation and black hole activity in high-redshift galaxies using JADES spectroscopy.
 
 ### week3_centroiding_solutions.ipynb
@@ -39,5 +39,5 @@ Project overview, data sources, references, and file descriptions.
 ### Papers:
 - [A GLIMPSE of the First Galaxies?](https://astrobites.org/2025/05/30/glimpsing_galaxies/#:~:text=Figure%202:%20Color-color%20plot,Figure%202%20in%20the%20paper.)
 - [Unveiling the oldest and most massive galaxies at very high redshift⋆](https://www.aanda.org/articles/aa/pdf/2007/28/aa6497-06.pdf)
--[JADES Data Release 3 – NIRSpec/MSA spectroscopy for 4,000 galaxies in the GOODS fields](https://arxiv.org/pdf/2404.06531)
+- [JADES Data Release 3 – NIRSpec/MSA spectroscopy for 4,000 galaxies in the GOODS fields](https://arxiv.org/pdf/2404.06531)
 - [Excitation and Ionization Properties of Star-forming Galaxies at z= 2.0−9.3 with JWST/NIRSpec](https://arxiv.org/pdf/2301.06696)
